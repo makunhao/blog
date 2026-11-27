@@ -1,0 +1,200 @@
+# =====================================================
+# Butterfly 主题覆盖配置（与 node_modules 中主题默认配置深度合并）
+# 完整可选项见: node_modules/hexo-theme-butterfly/_config.yml
+# 官方文档: https://butterfly.js.org/
+# =====================================================
+
+# 导航栏
+nav:
+  logo:
+  display_title: true
+  display_post_title: true
+  fixed: true
+
+# 菜单（支持二级菜单）
+menu:
+  文章: /archives/ || fas fa-book-open
+  友链: /link/ || fas fa-link
+  我的:
+    关于我: /about/ || fas fa-user
+    留言板: /messageboard/ || fas fa-comments
+  关于: /about-site/ || fas fa-circle-info
+
+# 代码块
+code_blocks:
+  theme: darker
+  macStyle: true
+  height_limit: false
+  word_wrap: false
+  copy: true
+  language: true
+  shrink: false
+  fullpage: false
+
+# 社交图标
+social:
+  fab fa-github: https://github.com/makunhao || GitHub || '#24292e'
+  fas fa-envelope: mailto:makunhao@163.com || Email || '#4a7dbe'
+
+# 图标 / 头像 / 横幅
+favicon: /img/favicon.png
+avatar:
+  img: /img/avatar.png
+  effect: false
+
+default_top_img: /img/banner.jpg
+index_img: /img/banner.jpg
+archive_img: /img/banner.jpg
+tag_img: /img/banner.jpg
+category_img: /img/banner.jpg
+
+cover:
+  index_enable: true
+  aside_enable: true
+  archives_enable: true
+  default_cover:
+    - /img/banner.jpg
+
+# 文章元信息
+post_meta:
+  page:
+    date_type: created
+    date_format: date
+    categories: true
+    tags: false
+    label: true
+  post:
+    position: left
+    date_type: both
+    date_format: date
+    categories: true
+    tags: true
+    label: true
+
+# 目录
+toc:
+  post: true
+  page: false
+  number: true
+  expand: false
+  style_simple: false
+  scroll_percent: true
+
+# 相关推荐
+related_post:
+  enable: true
+  limit: 6
+  date_type: created
+
+# 页脚
+footer:
+  nav:
+  owner:
+    enable: true
+    since: 2026
+  copyright:
+    enable: true
+    version: true
+
+# 侧边栏
+aside:
+  enable: true
+  hide: false
+  button: true
+  mobile: true
+  position: right
+  display:
+    archive: true
+    tag: true
+    category: true
+  card_author:
+    enable: true
+    description: 郑州西亚斯学院 · 计算机科学与技术<br>网络安全 / 靶场实战 / 瞎折腾
+    button:
+      enable: false
+  card_announcement:
+    enable: true
+    content: 欢迎来到我的小站！这里记录网络安全学习、靶场 WriteUp 和一些折腾笔记。
+  card_recent_post:
+    enable: true
+    limit: 5
+    sort: date
+  card_categories:
+    enable: true
+    limit: 8
+  card_tags:
+    enable: true
+    limit: 40
+    color: false
+    orderby: random
+    order: 1
+  card_archives:
+    enable: true
+    type: monthly
+    format: MMMM YYYY
+    order: -1
+    limit: 8
+  card_webinfo:
+    enable: true
+    post_count: true
+    last_push_date: true
+
+# 夜间模式：默认深色，可手动切换
+darkmode:
+  enable: true
+  button: true
+  autoChangeMode: false
+display_mode: dark
+
+# 右下角按钮
+rightside_scroll_percent: true
+
+# 字数统计（需 hexo-wordcount）
+wordcount:
+  enable: true
+  post_wordcount: true
+  min2read: true
+  total_wordcount: true
+
+# 关闭不蒜子（第三方统计经常失效）
+busuanzi:
+  site_uv: false
+  site_pv: false
+  page_pv: false
+
+# 首页摘要：优先用文章 description
+index_post_content:
+  method: 2
+  length: 500
+
+# 搜索：本地搜索（需 hexo-generator-searchdb）
+search:
+  use: local_search
+  placeholder: 搜索文章…
+  local_search:
+    preload: false
+    top_n_per_article: 1
+    unescape: false
+
+# 加载动画
+preloader:
+  enable: false
+
+# 复制版权提示
+copy:
+  enable: true
+  copyright:
+    enable: true
+    limit_count: 150
+
+# 注入自定义样式
+inject:
+  head:
+    - <link rel="stylesheet" href="/css/custom.css">
+  bottom:
+
+# 第三方资源走本地（国内访问更快，需 hexo-butterfly-extjs）
+CDN:
+  internal_provider: local
+  third_party_provider: local
+  version: true

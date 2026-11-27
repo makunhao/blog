@@ -1,0 +1,54 @@
+/* ================= 站点自定义样式 ================= */
+
+/* 卡片圆角 */
+#recent-posts > .recent-post-item,
+.card-widget,
+#post,
+#page {
+  border-radius: 12px;
+}
+
+/* 正文标题字重 */
+#article-container h1,
+#article-container h2,
+#article-container h3 {
+  font-weight: 700;
+}
+
+/* AI 摘要卡片（示例组件，可复用到任意文章） */
+.ai-summary {
+  margin: 1.2rem 0 1.6rem;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.ai-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+  font-weight: 600;
+}
+
+.ai-summary-head .tag {
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8b4b8;
+  color: #fff;
+}
+
+.ai-summary-body {
+  font-size: 0.95rem;
+  line-height: 1.75;
+  color: var(--font-color, #c9c9c9);
+  opacity: 0.92;
+}
+
+/* 首页文章标题悬停 */
+#recent-posts .recent-post-info .article-title:hover {
+  color: #49b1f5;
+}
