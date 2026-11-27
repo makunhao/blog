@@ -85,6 +85,7 @@ function navigate(view) {
     overview: renderOverview,
     posts: renderPosts,
     pages: renderPages,
+    categories: renderCategories,
     media: renderMedia,
     features: renderFeatures,
     site: () => renderConfig('site'),
@@ -212,7 +213,10 @@ function editorFields(p) {
     '<div class="field"><label>发布日期</label><input type="text" id="f-date" value="' + esc(m.date) + '" placeholder="2026-11-27 20:00:00"></div>' +
     '<div class="field"><label>更新日期（可空）</label><input type="text" id="f-updated" value="' + esc(m.updated) + '"></div>' +
     '<div class="field"><label>文件名 slug</label><input type="text" id="f-slug" value="' + esc(p.slug) + '"></div>' +
-    '<div class="field"><label>分类（逗号分隔）</label><input type="text" id="f-cats" value="' + esc((m.categories || []).join(', ')) + '"></div>' +
+    '<div class="field wide"><label>分类</label><div class="chips" id="f-cat-chips"></div>' +
+      '<div class="row" style="margin-top:8px;gap:8px">' +
+      '<input type="text" id="f-cat-new" placeholder="新分类，如 技术/网络">' +
+      '<button class="btn btn-sm" id="f-cat-add" type="button" style="flex:0 0 auto">添加</button></div></div>' +
     '<div class="field"><label>标签（逗号分隔）</label><input type="text" id="f-tags" value="' + esc((m.tags || []).join(', ')) + '"></div>' +
     '<div class="field wide"><label>摘要 description（首页显示）</label><input type="text" id="f-desc" value="' + esc(m.description) + '"></div>' +
     '<div class="field"><label>横幅 top_img</label><input type="text" id="f-top" value="' + esc(m.top_img) + '" placeholder="/img/banner.jpg"></div>' +
@@ -232,6 +236,77 @@ function postEditorHtml(p, draft) {
     '</div>';
 }
 
+let edCategory = '';
+
+function categoryPathOf(meta) {
+  const c = meta && meta.categories;
+  if (!c) return '';
+  return (Array.isArray(c) ? c : [c]).filter(Boolean).join('/');
+}
+
+async function setupCategoryChips(initial) {
+  let list = [];
+  try { list = await api('/api/categories'); } catch (e) {}
+  const paths = list.map(x => x.path);
+  if (initial && paths.indexOf(initial) === -1) paths.unshift(initial);
+  edCategory = initial || '';
+  const render = () => {
+    const box = $('#f-cat-chips');
+    if (!box) return;
+    box.innerHTML = '<span class="chip' + (edCategory === '' ? ' active' : '') + '" data-cat="">未分类</span>' +
+      paths.map(p => '<span class="chip' + (p === edCategory ? ' active' : '') + '" data-cat="' + esc(p) + '">' + esc(p) + '</span>').join('');
+    box.querySelectorAll('.chip').forEach(c => {
+      c.onclick = () => { edCategory = c.dataset.cat; render(); };
+    });
+  };
+  render();
+  const add = $('#f-cat-add');
+  if (add) add.onclick = () => {
+    const v = $('#f-cat-new').value.trim().replace(/^\/+|\/+$/g, '');
+    if (!v) return;
+    if (paths.indexOf(v) === -1) paths.unshift(v);
+    edCategory = v;
+    $('#f-cat-new').value = '';
+    render();
+  };
+}
+
+async function renderCategories() {
+  setHeader('分类', '分类在文章里创建；这里可以批量重命名、删除', []);
+  try {
+    const list = await api('/api/categories');
+    content.innerHTML = '<div class="card"><h3 class="section-title">现有分类（' + list.length + '）</h3>' +
+      (list.length
+        ? '<table class="table"><thead><tr><th>分类</th><th>文章数</th><th style="text-align:right">操作</th></tr></thead><tbody>' +
+          list.map(c => '<tr><td class="title">' + esc(c.path) + '</td><td class="muted">' + c.count + '</td>' +
+            '<td><div class="ops"><button class="btn btn-sm" data-rename="' + esc(c.path) + '">重命名</button>' +
+            '<button class="btn btn-sm btn-danger" data-catdel="' + esc(c.path) + '">删除</button></div></td></tr>').join('') +
+          '</tbody></table>'
+        : '<div class="empty">还没有分类，新建文章时在「分类」里添加即可</div>') +
+      '</div><div class="card" style="margin-top:16px"><div class="hint">分类是层级结构（如 原创/网络安全），重命名和删除会同步修改所有相关文章；删除后文章会归到「未分类」。</div></div>';
+
+    content.querySelectorAll('[data-rename]').forEach(b => b.onclick = async () => {
+      const from = b.dataset.rename;
+      const to = prompt('新的分类路径（用 / 表示层级）', from);
+      if (!to || to === from) return;
+      try {
+        const r = await api('/api/categories/rename', { method: 'POST', body: { from, to } });
+        toast('已更新 ' + r.changed + ' 篇文章');
+        renderCategories();
+      } catch (e) { toast(e.message, true); }
+    });
+    content.querySelectorAll('[data-catdel]').forEach(b => b.onclick = async () => {
+      const path = b.dataset.catdel;
+      if (!confirm('删除分类「' + path + '」？相关文章会归到未分类。')) return;
+      try {
+        const r = await api('/api/categories/delete', { method: 'POST', body: { path } });
+        toast('已更新 ' + r.changed + ' 篇文章');
+        renderCategories();
+      } catch (e) { toast(e.message, true); }
+    });
+  } catch (e) { content.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
 function bindEditor(p, draft) {
   cmInstance = CodeMirror.fromTextArea($('#ed-md'), {
     mode: 'markdown', theme: 'material-darker', lineWrapping: true, lineNumbers: true
@@ -241,13 +316,14 @@ function bindEditor(p, draft) {
   };
   cmInstance.on('change', () => { clearTimeout(bindEditor._t); bindEditor._t = setTimeout(renderPreview, 200); });
   renderPreview();
+  setupCategoryChips((p.meta.categories || []).filter(Boolean).join('/'));
 
   const save = async () => {
     const meta = {
       title: $('#f-title').value.trim(),
       date: $('#f-date').value.trim(),
       updated: $('#f-updated').value.trim(),
-      categories: splitList($('#f-cats').value),
+      categories: edCategory ? edCategory.split('/').filter(Boolean) : ['未分类'],
       tags: splitList($('#f-tags').value),
       top_img: $('#f-top').value.trim(),
       cover: $('#f-cover').value.trim(),

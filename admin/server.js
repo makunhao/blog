@@ -168,6 +168,75 @@ function execSyncText(cmd) {
   return ((r.stdout || '') + (r.stderr || '')).trim();
 }
 
+/* ---------------- 分类 ---------------- */
+
+function categoryPathOf(meta) {
+  const c = meta && meta.categories;
+  if (!c) return '';
+  const arr = Array.isArray(c) ? c : [c];
+  return arr.filter(Boolean).join('/');
+}
+
+function allPostFiles() {
+  const files = [];
+  [POSTS_DIR, DRAFTS_DIR].forEach(d => {
+    if (!fs.existsSync(d)) return;
+    fs.readdirSync(d).filter(f => f.toLowerCase().endsWith('.md')).forEach(f => files.push(path.join(d, f)));
+  });
+  return files;
+}
+
+function collectCategories() {
+  const map = {};
+  allPostFiles().forEach(f => {
+    const { meta } = splitMd(fs.readFileSync(f, 'utf8'));
+    const p = categoryPathOf(meta);
+    if (p) map[p] = (map[p] || 0) + 1;
+  });
+  return Object.keys(map).map(p => ({ path: p, count: map[p] })).sort((a, b) => b.count - a.count);
+}
+
+app.get('/api/categories', (req, res) => res.json(collectCategories()));
+
+app.post('/api/categories/rename', (req, res) => {
+  const from = String((req.body || {}).from || '').trim();
+  const to = String((req.body || {}).to || '').trim();
+  if (!from || !to) return res.status(400).json({ error: '缺少分类名' });
+  let changed = 0;
+  allPostFiles().forEach(f => {
+    const raw = fs.readFileSync(f, 'utf8');
+    const { meta, body } = splitMd(raw);
+    const p = categoryPathOf(meta);
+    if (!p || !(p === from || p.indexOf(from + '/') === 0)) return;
+    const arr = Array.isArray(meta.categories) ? meta.categories : [meta.categories];
+    const rest = arr.slice(from.split('/').length);
+    meta.categories = to.split('/').filter(Boolean).concat(rest);
+    backup(f);
+    fs.writeFileSync(f, buildMd(meta, body), 'utf8');
+    changed++;
+  });
+  res.json({ ok: true, changed });
+});
+
+app.post('/api/categories/delete', (req, res) => {
+  const target = String((req.body || {}).path || '').trim();
+  if (!target) return res.status(400).json({ error: '缺少分类名' });
+  let changed = 0;
+  allPostFiles().forEach(f => {
+    const raw = fs.readFileSync(f, 'utf8');
+    const { meta, body } = splitMd(raw);
+    const p = categoryPathOf(meta);
+    if (!p || !(p === target || p.indexOf(target + '/') === 0)) return;
+    const arr = Array.isArray(meta.categories) ? meta.categories : [meta.categories];
+    const rest = arr.slice(target.split('/').length);
+    meta.categories = rest.length ? rest : ['未分类'];
+    backup(f);
+    fs.writeFileSync(f, buildMd(meta, body), 'utf8');
+    changed++;
+  });
+  res.json({ ok: true, changed });
+});
+
 /* ---------------- 文章 ---------------- */
 
 app.get('/api/posts', (req, res) => {
@@ -181,7 +250,7 @@ app.get('/api/posts/:slug', (req, res) => {
 });
 
 app.post('/api/posts', (req, res) => {
-  const { title, slug, draft } = req.body || {};
+  const { title, slug, draft, category } = req.body || {};
   if (!title) return res.status(400).json({ error: '标题不能为空' });
   let s = safeSlug(slug || '') || 'post-' + Date.now();
   const dir = draft ? DRAFTS_DIR : POSTS_DIR;
@@ -192,7 +261,7 @@ app.post('/api/posts', (req, res) => {
   const meta = {
     title,
     date: fmtDate(new Date()),
-    categories: ['未分类'],
+    categories: category ? String(category).split('/').filter(Boolean) : ['未分类'],
     tags: [],
     top_img: '/img/banner.jpg',
     cover: '/img/banner.jpg',
