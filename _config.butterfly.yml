@@ -42,8 +42,8 @@ avatar:
   img: /img/avatar.png
   effect: false
 
-default_top_img: /img/banner.jpg
-index_img: /img/banner.jpg
+default_top_img: /img/banner.png
+index_img: /img/banner.png
 archive_img: /img/banner.jpg
 tag_img: /img/banner.jpg
 category_img: /img/banner.jpg
