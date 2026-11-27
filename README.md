@@ -120,4 +120,6 @@ blog/
 
 ## 说明
 
+> 若 Cloudflare 控制台只提供 Workers 流程，仓库已内置 `wrangler.jsonc`，可直接用默认的 `npm run build` + `npx wrangler deploy` 部署。
+
 站内示例文章与页面均为占位内容，发布前请替换为自己的信息。渗透、应急响应类内容仅限授权环境与学习用途。

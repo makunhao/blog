@@ -32,5 +32,8 @@
   "private": true,
   "hexo": {
     "version": "8.1.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.168.0"
   }
 }
