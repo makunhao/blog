@@ -134,6 +134,10 @@ blog/
 
 安全说明：后台只监听 `127.0.0.1`，不要改成 `0.0.0.0`；写配置/页面前会自动备份到 **`D:\blog\backups\`**（保留最近 30 份，文件名带时间戳）。`admin/` 目录不参与 Hexo 构建，也不会部署到线上。
 
+### 构建体积
+
+`npm run build` 会在生成后执行 `scripts/prune-assets.js`，删除 `pluginsSrc` 里未使用的第三方库（mermaid、mathjax、评论系统、docsearch 等），当前产物约 3.3MB。如果以后启用了评论、数学公式、Mermaid 图表等功能，请把对应的库从脚本的 `KEEP` 列表里放行（脚本默认删除白名单之外的一切）。
+
 ## 部署到 Cloudflare Pages
 
 1. 把项目推到 GitHub（`node_modules/`、`public/`、`db.json` 已在 `.gitignore` 中排除）；

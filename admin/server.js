@@ -449,7 +449,7 @@ app.post('/api/run', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   if (action === 'build') {
     await stream(res, 'npx hexo clean');
-    await stream(res, 'npx hexo generate');
+    await stream(res, 'npm run build');
   } else if (action === 'push') {
     await stream(res, 'git add -A');
     await stream(res, 'git status --short');
