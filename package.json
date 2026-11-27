@@ -4,7 +4,7 @@
   "description": "Hexo + Butterfly 个人博客",
   "main": "index.js",
   "scripts": {
-    "build": "hexo generate && node scripts/prune-assets.js",
+    "build": "hexo generate && node tools/prune-assets.js",
     "clean": "hexo clean",
     "server": "hexo server",
     "new": "hexo new"

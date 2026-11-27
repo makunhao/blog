@@ -109,6 +109,14 @@ function normalizeMeta(meta) {
   return m;
 }
 
+function moveToTrash(file) {
+  const trash = path.join(BACKUP_DIR, 'trash');
+  fs.mkdirSync(trash, { recursive: true });
+  const target = path.join(trash, Date.now() + '-' + path.basename(file));
+  fs.renameSync(file, target);
+  return target;
+}
+
 function backup(file) {
   try {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -217,8 +225,8 @@ app.delete('/api/posts/:slug', (req, res) => {
   const draft = req.query.draft === '1';
   const full = path.join(draft ? DRAFTS_DIR : POSTS_DIR, safeSlug(req.params.slug) + '.md');
   if (!fs.existsSync(full)) return res.status(404).json({ error: '文章不存在' });
-  fs.unlinkSync(full);
-  res.json({ ok: true });
+  moveToTrash(full);
+  res.json({ ok: true, trashed: true });
 });
 
 /* ---------------- 页面 ---------------- */
@@ -291,8 +299,8 @@ app.delete('/api/media/:name', (req, res) => {
   const name = path.basename(req.params.name);
   const full = path.join(IMG_DIR, name);
   if (!fs.existsSync(full)) return res.status(404).json({ error: '文件不存在' });
-  fs.unlinkSync(full);
-  res.json({ ok: true });
+  moveToTrash(full);
+  res.json({ ok: true, trashed: true });
 });
 
 /* 头像 / 横幅上传 */

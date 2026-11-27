@@ -27,7 +27,8 @@ function sizeOf(p) {
   return total;
 }
 
-if (!fs.existsSync(DIR)) process.exit(0);
+function run() {
+if (!fs.existsSync(DIR)) { console.log('public/pluginsSrc 不存在，跳过清理'); return; }
 
 let saved = 0;
 for (const name of fs.readdirSync(DIR)) {
@@ -39,3 +40,7 @@ for (const name of fs.readdirSync(DIR)) {
   console.log('pruned pluginsSrc/' + name + ' (' + (size / 1024 / 1024).toFixed(2) + ' MB)');
 }
 console.log('pluginsSrc 清理完成，共释放 ' + (saved / 1024 / 1024).toFixed(2) + ' MB');
+}
+
+module.exports = { run };
+if (require.main === module) run();
