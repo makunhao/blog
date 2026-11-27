@@ -102,11 +102,24 @@ blog/
 </div>
 ```
 
+
+## 个性化组件
+
+| 组件 | 位置 | 说明 |
+| --- | --- | --- |
+| Live2D 看板娘 | `source/live2d/` | 本地资源，模型是 hijiki；换模型改 `waifu-tips.json` 里的 `models` 路径 |
+| 悬浮音乐播放器 | `source/js/music.js` | APlayer + Meting 接口，歌单改 `API` 里的 `id`（网易云歌单 ID） |
+| 问候语 / 每日一言 / 时间进度 | `source/js/fancy.js` | 纯前端实现，每日一言来自 hitokoto |
+| IP 属地与距离 | `worker.js` | Cloudflare Worker 的 `/api/geo` 读取请求地理信息；本地预览时该项自动隐藏 |
+| 点击爱心 / 背景飘带 | `_config.butterfly.yml` | `click_heart`、`canvas_ribbon`，可自行关闭 |
+
+注意：看板娘和播放器在手机端自动隐藏；音乐依赖第三方 Meting 接口（`api.i-meto.com`），接口不可用时会自动隐藏播放器。
+
 ## 部署到 Cloudflare Pages
 
 1. 把项目推到 GitHub（`node_modules/`、`public/`、`db.json` 已在 `.gitignore` 中排除）；
 2. Cloudflare 控制台 → Workers & Pages → 创建 Pages 项目 → 连接该仓库；
-3. 构建命令填 `npx hexo generate`，输出目录填 `public`；
+3. 构建命令填 `npm run build`，部署命令 `npx wrangler deploy`（仓库已带 `wrangler.jsonc` 和 `worker.js`，静态资源绑定为 `ASSETS`）；
 4. 每次 `git push` 自动构建部署；
 5. 在 Pages 项目的「自定义域」中添加 `makunhao.cn` / `blog.makunhao.cn`，按提示在域名服务商处配置 DNS。
 
