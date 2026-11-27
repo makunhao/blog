@@ -13,4 +13,4 @@ db.json
 
 # 管理后台
 admin/node_modules/
-admin/backups/
+backups/

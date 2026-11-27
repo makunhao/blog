@@ -15,7 +15,7 @@ const SRC_DIR = path.join(ROOT, 'source');
 const IMG_DIR = path.join(ROOT, 'source', 'img');
 const MUSIC_JS = path.join(ROOT, 'source', 'js', 'music.js');
 const WAIFU_JSON = path.join(ROOT, 'source', 'live2d', 'waifu-tips.json');
-const BACKUP_DIR = path.join(__dirname, 'backups');
+const BACKUP_DIR = path.join(ROOT, 'backups');
 const CONFIGS = {
   site: path.join(ROOT, '_config.yml'),
   theme: path.join(ROOT, '_config.butterfly.yml')
@@ -124,7 +124,7 @@ function loadYamlDoc(file) {
 
 function saveYamlDoc(file, doc) {
   backup(file);
-  fs.writeFileSync(file, doc.toString(), 'utf8');
+  fs.writeFileSync(file, doc.toString({ lineWidth: 0 }), 'utf8');
 }
 
 /* ---------------- 概览 ---------------- */
@@ -495,6 +495,8 @@ app.get('/api/plugins', (req, res) => {
 });
 
 /* ---------------- 启动 ---------------- */
+
+try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch (e) {}
 
 app.listen(PORT, '127.0.0.1', () => {
   console.log('\n  博客管理后台已启动：http://localhost:' + PORT + '\n');
