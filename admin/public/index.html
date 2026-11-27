@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>博客管理台</title>
+<link rel="stylesheet" href="/vendor/codemirror/lib/codemirror.css">
+<link rel="stylesheet" href="/vendor/codemirror/theme/material-darker.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="brand"><span class="logo">M</span><div><b>makunhao 管理台</b><small>D:\blog</small></div></div>
+  <nav id="nav">
+    <a data-view="overview" class="active"><i>▦</i>概览</a>
+    <a data-view="posts"><i>✎</i>文章</a>
+    <a data-view="pages"><i>▤</i>页面</a>
+    <a data-view="media"><i>▧</i>媒体库</a>
+    <a data-view="features"><i>✦</i>组件与个性化</a>
+    <a data-view="site"><i>◈</i>站点配置</a>
+    <a data-view="theme"><i>◐</i>主题配置</a>
+    <a data-view="plugins"><i>❏</i>插件</a>
+    <a data-view="publish"><i>↥</i>构建与发布</a>
+  </nav>
+  <div class="side-foot"><span class="status-dot"></span><span id="side-status">连接中…</span></div>
+</aside>
+<main>
+  <header id="topbar">
+    <div>
+      <h1 id="view-title">概览</h1>
+      <p id="view-sub">本地管理后台 · 仅监听 127.0.0.1</p>
+    </div>
+    <div id="top-actions"></div>
+  </header>
+  <section id="content"></section>
+</main>
+<div id="toast"></div>
+<input type="file" id="hidden-file" style="display:none">
+<script src="/vendor/codemirror/lib/codemirror.js"></script>
+<script src="/vendor/codemirror/mode/yaml/yaml.js"></script>
+<script src="/vendor/codemirror/mode/markdown/markdown.js"></script>
+<script src="/vendor/marked/marked.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

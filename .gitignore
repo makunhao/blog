@@ -3,12 +3,12 @@ Thumbs.db
 db.json
 *.log
 node_modules/
-public/
+/public/
 .deploy*/
 _multiconfig.yml
 
 # 本地预览产物
-public/
+/public/
 db.json
 
 # 管理后台
