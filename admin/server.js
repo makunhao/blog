@@ -315,6 +315,9 @@ app.post('/api/banner', upload.single('file'), (req, res) => {
   const ext = path.extname(req.file.filename).toLowerCase();
   const target = path.join(IMG_DIR, 'banner' + ext);
   fs.renameSync(req.file.path, target);
+  fs.readdirSync(IMG_DIR).filter(f => /^banner\./i.test(f) && f !== 'banner' + ext).forEach(f => {
+    try { fs.unlinkSync(path.join(IMG_DIR, f)); } catch (e) {}
+  });
   const doc = loadYamlDoc(CONFIGS.theme);
   doc.setIn(['index_img'], '/img/banner' + ext);
   doc.setIn(['default_top_img'], '/img/banner' + ext);

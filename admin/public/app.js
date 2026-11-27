@@ -365,6 +365,38 @@ async function renderMedia() {
   } catch (e) { content.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
 }
 
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function compressImage(file, opts) {
+  opts = opts || {};
+  const maxW = opts.maxW || 1920;
+  const maxH = opts.maxH || 0;
+  const quality = opts.quality || 0.85;
+  const img = await loadImageFile(file);
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (opts.square) {
+    const s = Math.min(sw, sh);
+    sx = (sw - s) / 2; sy = (sh - s) / 2; sw = s; sh = s;
+  }
+  const scale = Math.min(1, maxW / sw, maxH ? maxH / sh : 1);
+  const cw = Math.max(1, Math.round(sw * scale));
+  const ch = Math.max(1, Math.round(sh * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = cw; canvas.height = ch;
+  canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+  URL.revokeObjectURL(img.src);
+  const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  return new File([blob], name, { type: 'image/jpeg' });
+}
+
 function pickFiles(kind) {
   const input = $('#hidden-file');
   input.value = '';
@@ -377,7 +409,13 @@ function pickFiles(kind) {
       try { await api('/api/media', { method: 'POST', body: fd }); toast('上传完成'); renderMedia(); }
       catch (e) { toast(e.message, true); }
     } else {
-      fd.append('file', input.files[0]);
+      let f = input.files[0];
+      try {
+        f = kind === 'avatar'
+          ? await compressImage(f, { maxW: 400, maxH: 400, square: true, quality: 0.9 })
+          : await compressImage(f, { maxW: 1920, quality: 0.85 });
+      } catch (e) { /* 压缩失败就传原图 */ }
+      fd.append('file', f);
       try { await api(kind === 'avatar' ? '/api/avatar' : '/api/banner', { method: 'POST', body: fd }); toast('已替换'); renderMedia(); }
       catch (e) { toast(e.message, true); }
     }

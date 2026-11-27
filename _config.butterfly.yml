@@ -39,11 +39,11 @@ social:
 # 图标 / 头像 / 横幅
 favicon: /img/favicon.png
 avatar:
-  img: /img/avatar.png
+  img: /img/avatar.jpg
   effect: false
 
-default_top_img: /img/banner.png
-index_img: /img/banner.png
+default_top_img: /img/banner.jpg
+index_img: /img/banner.jpg
 archive_img: /img/banner.jpg
 tag_img: /img/banner.jpg
 category_img: /img/banner.jpg
