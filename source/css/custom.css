@@ -52,3 +52,61 @@
 #recent-posts .recent-post-info .article-title:hover {
   color: #49b1f5;
 }
+
+/* ================= 花哨增强 ================= */
+
+/* 导航与首页大标题渐变 */
+.site-name a,
+#site-title {
+  background: linear-gradient(90deg, #f6cfd2, #ffe6bd 45%, #a9c7f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* 作者卡片：手绘虚线边框 */
+#aside-content .card-info {
+  position: relative;
+  overflow: visible;
+}
+
+#aside-content .card-info::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 2px dashed rgba(240, 190, 195, .55);
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+/* 公告里的每日一言 */
+.hitokoto-text {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: .82rem;
+  opacity: .72;
+  line-height: 1.6;
+}
+
+/* 时间进度卡片 */
+.tp-countdown { text-align: center; margin: 10px 0 14px; }
+.tp-cd-label { font-size: .82rem; opacity: .7; }
+.tp-cd-days { font-size: 2rem; font-weight: 700; line-height: 1.25; color: #eebfc3; }
+.tp-days-unit { font-size: .85rem; margin-left: 4px; opacity: .65; }
+.tp-cd-date { font-size: .72rem; opacity: .45; letter-spacing: .04em; }
+.tp-row { display: flex; align-items: center; gap: 8px; font-size: .78rem; margin: 7px 0; }
+.tp-label { width: 2.2rem; opacity: .75; flex: none; }
+.tp-track { flex: 1; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .10); overflow: hidden; }
+.tp-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #eebfc3, #c98d90); }
+.tp-pct { width: 3.2rem; text-align: right; opacity: .55; font-variant-numeric: tabular-nums; flex: none; }
+
+/* 文章卡片悬浮 */
+#recent-posts .recent-post-item {
+  transition: transform .3s ease, box-shadow .3s ease;
+}
+
+#recent-posts .recent-post-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .35);
+}

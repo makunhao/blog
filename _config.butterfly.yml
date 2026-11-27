@@ -114,7 +114,7 @@ aside:
       enable: false
   card_announcement:
     enable: true
-    content: 欢迎来到我的小站！这里记录网络安全学习、靶场 WriteUp 和一些折腾笔记。
+    content: '<span id="greeting-text">你好</span>，欢迎来到我的小站 👋<br><span id="hitokoto-text" class="hitokoto-text">每日一言加载中…</span>'
   card_recent_post:
     enable: true
     limit: 5
@@ -148,6 +148,30 @@ display_mode: dark
 
 # 右下角按钮
 rightside_scroll_percent: true
+
+# 页面特效
+activate_power_mode:
+  enable: true
+  colorful: true
+  shake: false
+  mobile: false
+
+canvas_ribbon:
+  enable: true
+  size: 90
+  alpha: 0.32
+  zIndex: -1
+  click_to_change: true
+  mobile: false
+
+fireworks:
+  enable: false
+  zIndex: 9999
+  mobile: false
+
+click_heart:
+  enable: true
+  mobile: false
 
 # 字数统计（需 hexo-wordcount）
 wordcount:
@@ -192,6 +216,7 @@ inject:
   head:
     - <link rel="stylesheet" href="/css/custom.css">
   bottom:
+    - <script src="/js/fancy.js" defer></script>
 
 # 第三方资源走本地（国内访问更快，需 hexo-butterfly-extjs）
 CDN:
