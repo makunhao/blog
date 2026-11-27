@@ -25,6 +25,7 @@ const PORT = Number(process.env.ADMIN_PORT || 5173);
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/img', express.static(IMG_DIR));
 app.use('/vendor/codemirror', express.static(path.join(__dirname, 'node_modules', 'codemirror')));
 app.use('/vendor/marked', express.static(path.join(__dirname, 'node_modules', 'marked')));
 
@@ -380,6 +381,7 @@ app.get('/api/features', (req, res) => {
   res.json({
     siteTitle: site.title || '',
     avatar: theme.avatar && theme.avatar.img || '',
+    banner: theme.index_img || '',
     signature: theme.aside && theme.aside.card_author && theme.aside.card_author.description || '',
     announcement: theme.aside && theme.aside.card_announcement && theme.aside.card_announcement.content || '',
     toggles: {

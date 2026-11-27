@@ -166,12 +166,12 @@ canvas_ribbon:
   mobile: false
 
 fireworks:
-  enable: false
+  enable: true
   zIndex: 9999
   mobile: false
 
 click_heart:
-  enable: true
+  enable: false
   mobile: false
 
 # 字数统计（需 hexo-wordcount）
@@ -203,7 +203,7 @@ search:
 
 # 加载动画
 preloader:
-  enable: false
+  enable: true
 
 # 复制版权提示
 copy:
