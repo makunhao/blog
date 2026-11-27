@@ -1,0 +1,501 @@
+/* 本地博客管理后台 —— 仅监听 127.0.0.1 */
+'use strict';
+
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const YAML = require('yaml');
+
+const ROOT = path.resolve(__dirname, '..');
+const POSTS_DIR = path.join(ROOT, 'source', '_posts');
+const DRAFTS_DIR = path.join(ROOT, 'source', '_drafts');
+const SRC_DIR = path.join(ROOT, 'source');
+const IMG_DIR = path.join(ROOT, 'source', 'img');
+const MUSIC_JS = path.join(ROOT, 'source', 'js', 'music.js');
+const WAIFU_JSON = path.join(ROOT, 'source', 'live2d', 'waifu-tips.json');
+const BACKUP_DIR = path.join(__dirname, 'backups');
+const CONFIGS = {
+  site: path.join(ROOT, '_config.yml'),
+  theme: path.join(ROOT, '_config.butterfly.yml')
+};
+const PORT = Number(process.env.ADMIN_PORT || 5173);
+
+const app = express();
+app.use(express.json({ limit: '20mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/vendor/codemirror', express.static(path.join(__dirname, 'node_modules', 'codemirror')));
+app.use('/vendor/marked', express.static(path.join(__dirname, 'node_modules', 'marked')));
+
+/* ---------------- 工具函数 ---------------- */
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+function fmtDate(v) {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
+function splitMd(text) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text || '');
+  if (!m) return { meta: {}, body: text || '', hasFm: false };
+  let meta = {};
+  try { meta = YAML.parse(m[1]) || {}; } catch (e) { meta = { _yamlerror: e.message }; }
+  return { meta, body: m[2] || '', hasFm: true };
+}
+
+const FM_ORDER = ['title', 'date', 'updated', 'categories', 'tags', 'top_img', 'cover', 'description'];
+
+function buildMd(meta, body) {
+  const out = {};
+  FM_ORDER.forEach(k => {
+    if (meta[k] !== undefined && meta[k] !== null && meta[k] !== '') out[k] = meta[k];
+  });
+  Object.keys(meta).forEach(k => {
+    if (!(k in out) && !k.startsWith('_') && meta[k] !== undefined && meta[k] !== '') out[k] = meta[k];
+  });
+  const y = YAML.stringify(out, { lineWidth: 0 }).replace(/\n$/, '');
+  return '---\n' + y + '\n---\n\n' + (body || '').replace(/^\n+/, '') + '\n';
+}
+
+function safeSlug(s) {
+  return String(s || '').trim().replace(/\.md$/i, '').replace(/[\\/:*?"<>|\s]+/g, '-');
+}
+
+function listMd(dir, draft) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(f => f.toLowerCase().endsWith('.md'))
+    .map(f => {
+      const full = path.join(dir, f);
+      const raw = fs.readFileSync(full, 'utf8');
+      const { meta } = splitMd(raw);
+      return {
+        slug: f.replace(/\.md$/i, ''),
+        file: path.relative(ROOT, full).replace(/\\/g, '/'),
+        title: meta.title || f.replace(/\.md$/i, ''),
+        date: fmtDate(meta.date),
+        updated: fmtDate(meta.updated),
+        categories: meta.categories || [],
+        tags: meta.tags || [],
+        description: meta.description || '',
+        draft: !!draft,
+        size: fs.statSync(full).size
+      };
+    })
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function getPost(slug, draft) {
+  const dir = draft ? DRAFTS_DIR : POSTS_DIR;
+  const full = path.join(dir, safeSlug(slug) + '.md');
+  if (!fs.existsSync(full)) return null;
+  const raw = fs.readFileSync(full, 'utf8');
+  const { meta, body } = splitMd(raw);
+  return { slug: safeSlug(slug), draft: !!draft, meta: normalizeMeta(meta), body, raw };
+}
+
+function normalizeMeta(meta) {
+  const m = Object.assign({}, meta);
+  if (m.date) m.date = fmtDate(m.date);
+  if (m.updated) m.updated = fmtDate(m.updated);
+  if (!Array.isArray(m.categories)) m.categories = m.categories ? [m.categories] : [];
+  if (!Array.isArray(m.tags)) m.tags = m.tags ? [m.tags] : [];
+  return m;
+}
+
+function backup(file) {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const name = path.basename(file) + '.' + Date.now() + '.bak';
+    fs.copyFileSync(file, path.join(BACKUP_DIR, name));
+    const files = fs.readdirSync(BACKUP_DIR).sort();
+    while (files.length > 30) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+  } catch (e) { /* ignore */ }
+}
+
+function loadYamlDoc(file) {
+  return YAML.parseDocument(fs.readFileSync(file, 'utf8'));
+}
+
+function saveYamlDoc(file, doc) {
+  backup(file);
+  fs.writeFileSync(file, doc.toString(), 'utf8');
+}
+
+/* ---------------- 概览 ---------------- */
+
+app.get('/api/overview', (req, res) => {
+  const posts = listMd(POSTS_DIR, false);
+  const drafts = listMd(DRAFTS_DIR, true);
+  const images = fs.existsSync(IMG_DIR) ? fs.readdirSync(IMG_DIR).filter(f => /\.(png|jpe?g|gif|webp|svg|ico)$/i.test(f)) : [];
+  let branch = '', lastCommit = '';
+  try {
+    branch = execSyncText('git branch --show-current');
+    lastCommit = execSyncText('git log -1 --oneline');
+  } catch (e) { /* ignore */ }
+  let site = { title: '', author: '' };
+  try {
+    const doc = YAML.parse(fs.readFileSync(CONFIGS.site, 'utf8'));
+    site = { title: doc.title || '', author: doc.author || '' };
+  } catch (e) { /* ignore */ }
+  res.json({
+    site,
+    posts: posts.length,
+    drafts: drafts.length,
+    images: images.length,
+    branch,
+    lastCommit,
+    root: ROOT
+  });
+});
+
+function execSyncText(cmd) {
+  const r = require('child_process').spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8' });
+  return ((r.stdout || '') + (r.stderr || '')).trim();
+}
+
+/* ---------------- 文章 ---------------- */
+
+app.get('/api/posts', (req, res) => {
+  res.json({ posts: listMd(POSTS_DIR, false), drafts: listMd(DRAFTS_DIR, true) });
+});
+
+app.get('/api/posts/:slug', (req, res) => {
+  const p = getPost(req.params.slug, req.query.draft === '1');
+  if (!p) return res.status(404).json({ error: '文章不存在' });
+  res.json(p);
+});
+
+app.post('/api/posts', (req, res) => {
+  const { title, slug, draft } = req.body || {};
+  if (!title) return res.status(400).json({ error: '标题不能为空' });
+  let s = safeSlug(slug || '') || 'post-' + Date.now();
+  const dir = draft ? DRAFTS_DIR : POSTS_DIR;
+  fs.mkdirSync(dir, { recursive: true });
+  let full = path.join(dir, s + '.md');
+  let i = 1;
+  while (fs.existsSync(full)) { full = path.join(dir, s + '-' + i + '.md'); i++; }
+  const meta = {
+    title,
+    date: fmtDate(new Date()),
+    categories: ['未分类'],
+    tags: [],
+    top_img: '/img/banner.jpg',
+    cover: '/img/banner.jpg',
+    description: ''
+  };
+  fs.writeFileSync(full, buildMd(meta, ''), 'utf8');
+  res.json({ ok: true, slug: path.basename(full, '.md'), draft: !!draft });
+});
+
+app.put('/api/posts/:slug', (req, res) => {
+  const slug = safeSlug(req.params.slug);
+  const draft = req.query.draft === '1';
+  const dir = draft ? DRAFTS_DIR : POSTS_DIR;
+  const oldPath = path.join(dir, slug + '.md');
+  if (!fs.existsSync(oldPath)) return res.status(404).json({ error: '文章不存在' });
+  const { meta = {}, body = '', newSlug } = req.body || {};
+  if (meta.date) meta.date = fmtDate(meta.date);
+  if (meta.updated) meta.updated = fmtDate(meta.updated);
+  let target = oldPath;
+  if (newSlug && safeSlug(newSlug) && safeSlug(newSlug) !== slug) {
+    target = path.join(dir, safeSlug(newSlug) + '.md');
+    if (fs.existsSync(target)) return res.status(400).json({ error: '目标文件名已存在' });
+  }
+  fs.writeFileSync(target, buildMd(meta, body), 'utf8');
+  if (target !== oldPath) fs.unlinkSync(oldPath);
+  res.json({ ok: true, slug: path.basename(target, '.md') });
+});
+
+app.delete('/api/posts/:slug', (req, res) => {
+  const draft = req.query.draft === '1';
+  const full = path.join(draft ? DRAFTS_DIR : POSTS_DIR, safeSlug(req.params.slug) + '.md');
+  if (!fs.existsSync(full)) return res.status(404).json({ error: '文章不存在' });
+  fs.unlinkSync(full);
+  res.json({ ok: true });
+});
+
+/* ---------------- 页面 ---------------- */
+
+app.get('/api/pages', (req, res) => {
+  const dirs = fs.readdirSync(SRC_DIR, { withFileTypes: true })
+    .filter(d => d.isDirectory() && !d.name.startsWith('_'))
+    .map(d => d.name)
+    .filter(name => fs.existsSync(path.join(SRC_DIR, name, 'index.md')));
+  res.json(dirs.map(name => {
+    const raw = fs.readFileSync(path.join(SRC_DIR, name, 'index.md'), 'utf8');
+    const { meta } = splitMd(raw);
+    return { name, file: 'source/' + name + '/index.md', title: meta.title || name };
+  }));
+});
+
+app.get('/api/pages/:name', (req, res) => {
+  const name = safeSlug(req.params.name);
+  const full = path.join(SRC_DIR, name, 'index.md');
+  if (!fs.existsSync(full)) return res.status(404).json({ error: '页面不存在' });
+  const { meta, body, raw } = splitMd(fs.readFileSync(full, 'utf8'));
+  res.json({ name, meta: normalizeMeta(meta), body, raw });
+});
+
+app.put('/api/pages/:name', (req, res) => {
+  const name = safeSlug(req.params.name);
+  const full = path.join(SRC_DIR, name, 'index.md');
+  if (!fs.existsSync(full)) return res.status(404).json({ error: '页面不存在' });
+  const { meta = {}, body = '' } = req.body || {};
+  backup(full);
+  fs.writeFileSync(full, buildMd(meta, body), 'utf8');
+  res.json({ ok: true });
+});
+
+/* ---------------- 媒体 ---------------- */
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => { fs.mkdirSync(IMG_DIR, { recursive: true }); cb(null, IMG_DIR); },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      let base = path.basename(file.originalname, ext).replace(/[^\w一-龥.-]+/g, '-');
+      let name = base + ext;
+      let i = 1;
+      while (fs.existsSync(path.join(IMG_DIR, name))) { name = base + '-' + i + ext; i++; }
+      cb(null, name);
+    }
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+app.get('/api/media', (req, res) => {
+  if (!fs.existsSync(IMG_DIR)) return res.json([]);
+  const files = fs.readdirSync(IMG_DIR)
+    .filter(f => /\.(png|jpe?g|gif|webp|svg|ico)$/i.test(f))
+    .map(f => {
+      const st = fs.statSync(path.join(IMG_DIR, f));
+      return { name: f, url: '/img/' + encodeURIComponent(f), size: st.size, mtime: st.mtime };
+    })
+    .sort((a, b) => b.mtime - a.mtime)
+    .map(f => ({ name: f.name, url: f.url, size: f.size, mtime: f.mtime }));
+  res.json(files);
+});
+
+app.post('/api/media', upload.array('files', 20), (req, res) => {
+  res.json({ ok: true, files: (req.files || []).map(f => '/img/' + f.filename) });
+});
+
+app.delete('/api/media/:name', (req, res) => {
+  const name = path.basename(req.params.name);
+  const full = path.join(IMG_DIR, name);
+  if (!fs.existsSync(full)) return res.status(404).json({ error: '文件不存在' });
+  fs.unlinkSync(full);
+  res.json({ ok: true });
+});
+
+/* 头像 / 横幅上传 */
+app.post('/api/avatar', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '没有文件' });
+  const ext = path.extname(req.file.filename).toLowerCase();
+  const target = path.join(IMG_DIR, 'avatar' + ext);
+  fs.renameSync(req.file.path, target);
+  fs.readdirSync(IMG_DIR).filter(f => /^avatar\./i.test(f) && f !== 'avatar' + ext).forEach(f => {
+    try { fs.unlinkSync(path.join(IMG_DIR, f)); } catch (e) {}
+  });
+  const doc = loadYamlDoc(CONFIGS.theme);
+  doc.setIn(['avatar', 'img'], '/img/avatar' + ext);
+  saveYamlDoc(CONFIGS.theme, doc);
+  res.json({ ok: true, url: '/img/avatar' + ext });
+});
+
+app.post('/api/banner', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '没有文件' });
+  const ext = path.extname(req.file.filename).toLowerCase();
+  const target = path.join(IMG_DIR, 'banner' + ext);
+  fs.renameSync(req.file.path, target);
+  const doc = loadYamlDoc(CONFIGS.theme);
+  doc.setIn(['index_img'], '/img/banner' + ext);
+  doc.setIn(['default_top_img'], '/img/banner' + ext);
+  saveYamlDoc(CONFIGS.theme, doc);
+  res.json({ ok: true, url: '/img/banner' + ext });
+});
+
+/* ---------------- 配置文件 ---------------- */
+
+app.get('/api/config/:name', (req, res) => {
+  const file = CONFIGS[req.params.name];
+  if (!file) return res.status(404).json({ error: '未知配置' });
+  res.json({ name: req.params.name, path: path.relative(ROOT, file), content: fs.readFileSync(file, 'utf8') });
+});
+
+app.get('/api/config/:name/parsed', (req, res) => {
+  const file = CONFIGS[req.params.name];
+  if (!file) return res.status(404).json({ error: '未知配置' });
+  try { res.json(YAML.parse(fs.readFileSync(file, 'utf8')) || {}); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/config/:name', (req, res) => {
+  const file = CONFIGS[req.params.name];
+  if (!file) return res.status(404).json({ error: '未知配置' });
+  const content = String((req.body || {}).content || '');
+  try { YAML.parse(content); } catch (e) { return res.status(400).json({ error: 'YAML 语法错误：' + e.message }); }
+  backup(file);
+  fs.writeFileSync(file, content, 'utf8');
+  res.json({ ok: true });
+});
+
+app.post('/api/config/:name/patch', (req, res) => {
+  const file = CONFIGS[req.params.name];
+  if (!file) return res.status(404).json({ error: '未知配置' });
+  const { path: keyPath, value } = req.body || {};
+  if (keyPath === undefined) return res.status(400).json({ error: '缺少 path' });
+  const doc = loadYamlDoc(file);
+  const segs = String(keyPath).split('.').map(s => /^\d+$/.test(s) ? Number(s) : s);
+  doc.setIn(segs, value);
+  saveYamlDoc(file, doc);
+  res.json({ ok: true });
+});
+
+/* ---------------- 组件与个性化设置 ---------------- */
+
+function readMusicId() {
+  try {
+    const m = /[?&]id=(\d+)/.exec(fs.readFileSync(MUSIC_JS, 'utf8'));
+    return m ? m[1] : '';
+  } catch (e) { return ''; }
+}
+
+function readLive2dModel() {
+  try {
+    const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
+    return (j.models && j.models[0] && j.models[0].paths && j.models[0].paths[0]) || '';
+  } catch (e) { return ''; }
+}
+
+app.get('/api/features', (req, res) => {
+  const theme = YAML.parse(fs.readFileSync(CONFIGS.theme, 'utf8')) || {};
+  const site = YAML.parse(fs.readFileSync(CONFIGS.site, 'utf8')) || {};
+  res.json({
+    siteTitle: site.title || '',
+    avatar: theme.avatar && theme.avatar.img || '',
+    signature: theme.aside && theme.aside.card_author && theme.aside.card_author.description || '',
+    announcement: theme.aside && theme.aside.card_announcement && theme.aside.card_announcement.content || '',
+    toggles: {
+      click_heart: !!(theme.click_heart && theme.click_heart.enable),
+      canvas_ribbon: !!(theme.canvas_ribbon && theme.canvas_ribbon.enable),
+      activate_power_mode: !!(theme.activate_power_mode && theme.activate_power_mode.enable),
+      fireworks: !!(theme.fireworks && theme.fireworks.enable),
+      preloader: !!(theme.preloader && theme.preloader.enable),
+      darkmode: !!(theme.darkmode && theme.darkmode.enable)
+    },
+    musicId: readMusicId(),
+    live2dModel: readLive2dModel()
+  });
+});
+
+app.put('/api/features', (req, res) => {
+  const b = req.body || {};
+  const doc = loadYamlDoc(CONFIGS.theme);
+  if (typeof b.avatar === 'string' && b.avatar) doc.setIn(['avatar', 'img'], b.avatar);
+  if (typeof b.signature === 'string') doc.setIn(['aside', 'card_author', 'description'], b.signature);
+  if (typeof b.announcement === 'string') doc.setIn(['aside', 'card_announcement', 'content'], b.announcement);
+  if (b.toggles && typeof b.toggles === 'object') {
+    Object.keys(b.toggles).forEach(k => doc.setIn([k, 'enable'], !!b.toggles[k]));
+  }
+  saveYamlDoc(CONFIGS.theme, doc);
+
+  if (typeof b.siteTitle === 'string' && b.siteTitle) {
+    const sdoc = loadYamlDoc(CONFIGS.site);
+    sdoc.set('title', b.siteTitle);
+    saveYamlDoc(CONFIGS.site, sdoc);
+  }
+  if (b.musicId && /^\d+$/.test(String(b.musicId))) {
+    const js = fs.readFileSync(MUSIC_JS, 'utf8').replace(/([?&]id=)\d+/, '$1' + b.musicId);
+    fs.writeFileSync(MUSIC_JS, js, 'utf8');
+  }
+  if (b.live2dModel && /^\/live2d\/models\//.test(b.live2dModel)) {
+    const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
+    if (j.models && j.models[0]) j.models[0].paths = [b.live2dModel];
+    fs.writeFileSync(WAIFU_JSON, JSON.stringify(j, null, 2) + '\n', 'utf8');
+  }
+  res.json({ ok: true });
+});
+
+/* ---------------- 运行命令 / 构建 / 推送 ---------------- */
+
+function stream(res, cmd, opts = {}) {
+  return new Promise(resolve => {
+    res.write('\n$ ' + cmd + '\n');
+    const child = spawn(cmd, { shell: true, cwd: ROOT, env: process.env });
+    child.stdout.pipe(res, { end: false });
+    child.stderr.pipe(res, { end: false });
+    child.on('close', code => {
+      res.write('\n[exit ' + code + ']\n');
+      resolve(code);
+    });
+  });
+}
+
+app.post('/api/run', async (req, res) => {
+  const { action } = req.body || {};
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  if (action === 'build') {
+    await stream(res, 'npx hexo clean');
+    await stream(res, 'npx hexo generate');
+  } else if (action === 'push') {
+    await stream(res, 'git add -A');
+    await stream(res, 'git status --short');
+    const code = await stream(res, 'git commit -m "后台更新"');
+    if (code === 0) {
+      await stream(res, 'git push');
+    } else {
+      res.write('\n没有新的文件改动，直接尝试推送…\n');
+      await stream(res, 'git push');
+    }
+  } else if (action === 'install' && req.body.name) {
+    await stream(res, 'npm install ' + req.body.name + ' --registry=https://registry.npmmirror.com');
+  } else if (action === 'uninstall' && req.body.name) {
+    await stream(res, 'npm uninstall ' + req.body.name);
+  } else {
+    res.write('未知操作\n');
+  }
+  res.end();
+});
+
+let previewProc = null;
+app.post('/api/preview/start', (req, res) => {
+  if (previewProc) return res.json({ ok: true, already: true, url: 'http://localhost:4000' });
+  previewProc = spawn('npx hexo server', { shell: true, cwd: ROOT, detached: false });
+  previewProc.on('close', () => { previewProc = null; });
+  res.json({ ok: true, url: 'http://localhost:4000' });
+});
+app.post('/api/preview/stop', (req, res) => {
+  if (!previewProc) return res.json({ ok: true, already: true });
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(previewProc.pid), '/T', '/F']);
+  } else {
+    previewProc.kill('SIGTERM');
+  }
+  previewProc = null;
+  res.json({ ok: true });
+});
+
+/* ---------------- 插件（package.json 依赖） ---------------- */
+
+app.get('/api/plugins', (req, res) => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  res.json(Object.keys(pkg.dependencies || {}).map(name => ({
+    name,
+    version: pkg.dependencies[name],
+    type: name.startsWith('hexo-') ? 'plugins' : 'base'
+  })));
+});
+
+/* ---------------- 启动 ---------------- */
+
+app.listen(PORT, '127.0.0.1', () => {
+  console.log('\n  博客管理后台已启动：http://localhost:' + PORT + '\n');
+});

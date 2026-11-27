@@ -10,3 +10,7 @@ _multiconfig.yml
 # 本地预览产物
 public/
 db.json
+
+# 管理后台
+admin/node_modules/
+admin/backups/

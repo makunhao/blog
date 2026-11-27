@@ -1,0 +1,17 @@
+{
+  "name": "blog-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "本地博客管理后台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "codemirror": "^5.65.16",
+    "express": "^4.19.2",
+    "marked": "^4.3.0",
+    "multer": "^2.5.0",
+    "yaml": "^2.4.5"
+  }
+}
