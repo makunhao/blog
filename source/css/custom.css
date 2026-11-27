@@ -110,3 +110,55 @@
   transform: translateY(-4px);
   box-shadow: 0 14px 30px rgba(0, 0, 0, .35);
 }
+
+/* ================= 第三方组件样式 ================= */
+
+/* IP 属地行 */
+.geo-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: .8rem;
+  opacity: .68;
+}
+
+/* 看板娘：上移，给左下的播放器让位 */
+#waifu {
+  bottom: 92px !important;
+  z-index: 90;
+}
+
+@media (max-width: 768px) {
+  #waifu { display: none !important; }
+}
+
+/* 悬浮播放器（固定在左下，深色适配） */
+#music-dock {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  width: 320px;
+  z-index: 95;
+}
+
+#music-dock.aplayer {
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(28, 28, 32, .94);
+  color: #e6e6e6;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  font-size: 12px;
+}
+
+#music-dock .aplayer .aplayer-info { border-bottom-color: rgba(255, 255, 255, .08); }
+#music-dock .aplayer .aplayer-info .aplayer-music .aplayer-title { color: #f2f2f2; }
+#music-dock .aplayer .aplayer-info .aplayer-music .aplayer-author { color: #9a9a9a; }
+#music-dock .aplayer .aplayer-info .aplayer-controller .aplayer-bar-wrap .aplayer-bar { background: rgba(255, 255, 255, .18); }
+#music-dock .aplayer .aplayer-list { background: rgba(28, 28, 32, .96); border-color: rgba(255, 255, 255, .08); }
+#music-dock .aplayer .aplayer-list ol li { border-top-color: rgba(255, 255, 255, .06); }
+#music-dock .aplayer .aplayer-list ol li .aplayer-list-author { color: #9a9a9a; }
+#music-dock .aplayer .aplayer-list ol li:hover { background: rgba(255, 255, 255, .06); }
+#music-dock .aplayer .aplayer-lrc { display: none !important; }
+
+@media (max-width: 768px) {
+  #music-dock { display: none !important; }
+}

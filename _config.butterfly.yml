@@ -114,7 +114,7 @@ aside:
       enable: false
   card_announcement:
     enable: true
-    content: '<span id="greeting-text">你好</span>，欢迎来到我的小站 👋<br><span id="hitokoto-text" class="hitokoto-text">每日一言加载中…</span>'
+    content: '<span id="greeting-text">你好</span>，欢迎来到我的小站 👋<br><span id="hitokoto-text" class="hitokoto-text">每日一言加载中…</span><br><span id="geo-loc" class="geo-line">📍 正在定位…</span><br><span id="geo-dist" class="geo-line"></span>'
   card_recent_post:
     enable: true
     limit: 5
@@ -138,6 +138,7 @@ aside:
     enable: true
     post_count: true
     last_push_date: true
+    runtime_date: '11/27/2026 08:00:00'
 
 # 夜间模式：默认深色，可手动切换
 darkmode:
@@ -215,8 +216,12 @@ copy:
 inject:
   head:
     - <link rel="stylesheet" href="/css/custom.css">
+    - <link rel="stylesheet" href="/libs/aplayer/APlayer.min.css">
   bottom:
     - <script src="/js/fancy.js" defer></script>
+    - <script src="/libs/aplayer/APlayer.min.js"></script>
+    - <script src="/js/music.js" defer></script>
+    - <script src="/live2d/autoload.js" type="module"></script>
 
 # 第三方资源走本地（国内访问更快，需 hexo-butterfly-extjs）
 CDN:

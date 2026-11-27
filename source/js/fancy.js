@@ -1,6 +1,20 @@
-/* ======== 个性化小组件：问候语 / 每日一言 / 时间进度 ======== */
+/* ======== 个性化小组件：问候语 / 每日一言 / 时间进度 / IP 属地 ======== */
 (function () {
   'use strict';
+
+  var HOME = { lat: 34.7466, lon: 113.6254 }; // 博主位置：郑州
+
+  var PROV_CN = {
+    Beijing: '北京', Tianjin: '天津', Shanghai: '上海', Chongqing: '重庆',
+    Hebei: '河北', Shanxi: '山西', Liaoning: '辽宁', Jilin: '吉林',
+    Heilongjiang: '黑龙江', Jiangsu: '江苏', Zhejiang: '浙江', Anhui: '安徽',
+    Fujian: '福建', Jiangxi: '江西', Shandong: '山东', Henan: '河南',
+    Hubei: '湖北', Hunan: '湖南', Guangdong: '广东', Hainan: '海南',
+    Sichuan: '四川', Guizhou: '贵州', Yunnan: '云南', Shaanxi: '陕西',
+    Gansu: '甘肃', Qinghai: '青海', Taiwan: '台湾', 'Inner Mongolia': '内蒙古',
+    Guangxi: '广西', Tibet: '西藏', Ningxia: '宁夏', Xinjiang: '新疆',
+    'Hong Kong': '香港', Macau: '澳门'
+  };
 
   /* ---------- 问候语 ---------- */
   function setGreeting() {
@@ -19,11 +33,9 @@
   }
 
   /* ---------- 每日一言 ---------- */
-  var hitokotoLoaded = false;
   function loadHitokoto() {
     var el = document.getElementById('hitokoto-text');
-    if (!el || hitokotoLoaded) return;
-    hitokotoLoaded = true;
+    if (!el) return;
     fetch('https://v1.hitokoto.cn/?c=i&encode=json')
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -31,6 +43,42 @@
       })
       .catch(function () {
         el.textContent = '保持热爱，奔赴山海。';
+      });
+  }
+
+  /* ---------- IP 属地与距离（依赖 Cloudflare Worker 的 /api/geo） ---------- */
+  function toRad(d) { return d * Math.PI / 180; }
+
+  function distanceKm(a, b) {
+    var R = 6371;
+    var dLat = toRad(b.lat - a.lat);
+    var dLon = toRad(b.lon - a.lon);
+    var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+  }
+
+  function loadGeo() {
+    var locEl = document.getElementById('geo-loc');
+    var distEl = document.getElementById('geo-dist');
+    if (!locEl) return;
+    fetch('/api/geo', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (g) {
+        if (!g || (!g.city && !g.region)) throw new Error('no geo');
+        var region = PROV_CN[g.region] || g.region || '';
+        var city = g.city || '';
+        var place = g.country === 'CN' || !g.country ? (region + (city ? ' · ' + city : '')) : (city || region || g.country);
+        locEl.textContent = '📍 来自 ' + place + ' 的朋友';
+        if (distEl && g.lat && g.lon) {
+          var km = distanceKm(HOME, { lat: parseFloat(g.lat), lon: parseFloat(g.lon) });
+          distEl.textContent = '📏 距离博主约 ' + km + ' 公里';
+        }
+      })
+      .catch(function () {
+        locEl.style.display = 'none';
+        if (distEl) distEl.style.display = 'none';
       });
   }
 
@@ -95,6 +143,7 @@
   function init() {
     setGreeting();
     loadHitokoto();
+    loadGeo();
     buildCard();
   }
 
