@@ -451,11 +451,18 @@ app.post('/api/run', async (req, res) => {
     await stream(res, 'git add -A');
     await stream(res, 'git status --short');
     const code = await stream(res, 'git commit -m "后台更新"');
-    if (code === 0) {
-      await stream(res, 'git push');
-    } else {
-      res.write('\n没有新的文件改动，直接尝试推送…\n');
-      await stream(res, 'git push');
+    if (code !== 0) res.write('\n没有新的文件改动，直接尝试推送…\n');
+    let pushCode = 1;
+    for (let i = 1; i <= 3 && pushCode !== 0; i++) {
+      if (i > 1) res.write('\n第 ' + i + ' 次重试推送…\n');
+      pushCode = await stream(res, 'git push');
+      if (pushCode !== 0 && i < 3) await new Promise(r => setTimeout(r, 3000));
+    }
+    if (pushCode !== 0) {
+      res.write('\n[提示] 连不上 github.com 时：检查网络/代理，或给 git 配置代理：\n');
+      res.write('  git config --global http.proxy http://127.0.0.1:7890\n');
+      res.write('  git config --global https.proxy http://127.0.0.1:7890\n');
+      res.write('  代理端口按你实际用的软件改，推送成功后可以 --unset 掉。\n');
     }
   } else if (action === 'install' && req.body.name) {
     await stream(res, 'npm install ' + req.body.name + ' --registry=https://registry.npmmirror.com');
