@@ -8,6 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "adm-zip": "^0.6.1",
     "codemirror": "^5.65.16",
     "express": "^4.19.2",
     "marked": "^4.3.0",

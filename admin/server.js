@@ -6,6 +6,8 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const os = require('os');
+const AdmZip = require('adm-zip');
 const YAML = require('yaml');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -16,6 +18,7 @@ const IMG_DIR = path.join(ROOT, 'source', 'img');
 const MUSIC_JS = path.join(ROOT, 'source', 'js', 'music.js');
 const WAIFU_JSON = path.join(ROOT, 'source', 'live2d', 'waifu-tips.json');
 const BACKUP_DIR = path.join(ROOT, 'backups');
+const MODELS_DIR = path.join(ROOT, 'source', 'live2d', 'models');
 const CONFIGS = {
   site: path.join(ROOT, '_config.yml'),
   theme: path.join(ROOT, '_config.butterfly.yml')
@@ -167,6 +170,27 @@ function execSyncText(cmd) {
   const r = require('child_process').spawnSync(cmd, { shell: true, cwd: ROOT, encoding: 'utf8' });
   return ((r.stdout || '') + (r.stderr || '')).trim();
 }
+
+app.post('/api/posts/import', (req, res) => {
+  const { filename = 'import.md', content = '', category = '' } = req.body || {};
+  if (!String(content).trim()) return res.status(400).json({ error: '文件内容为空' });
+  const { meta, body } = splitMd(String(content));
+  const base = path.basename(String(filename)).replace(/\.(md|markdown)$/i, '');
+  const title = meta.title || base || '导入的文章';
+  let slug = safeSlug(meta.slug || base) || ('import-' + Date.now());
+  fs.mkdirSync(POSTS_DIR, { recursive: true });
+  let full = path.join(POSTS_DIR, slug + '.md');
+  let i = 1;
+  while (fs.existsSync(full)) { full = path.join(POSTS_DIR, slug + '-' + i + '.md'); i++; }
+  const m = Object.assign({}, meta);
+  if (!m.date) m.date = fmtDate(new Date());
+  if (!m.categories || !m.categories.length) {
+    m.categories = category ? String(category).split('/').filter(Boolean) : ['未分类'];
+  }
+  if (!Array.isArray(m.categories)) m.categories = [m.categories];
+  fs.writeFileSync(full, buildMd(m, body), 'utf8');
+  res.json({ ok: true, slug: path.basename(full, '.md'), title });
+});
 
 /* ---------------- 分类 ---------------- */
 
@@ -501,6 +525,130 @@ app.put('/api/features', (req, res) => {
     const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
     if (j.models && j.models[0]) j.models[0].paths = [b.live2dModel];
     fs.writeFileSync(WAIFU_JSON, JSON.stringify(j, null, 2) + '\n', 'utf8');
+  }
+  res.json({ ok: true });
+});
+
+/* ---------------- Live2D 模型 ---------------- */
+
+function dirSize(p) {
+  let total = 0;
+  const st = fs.statSync(p);
+  if (st.isFile()) return st.size;
+  for (const f of fs.readdirSync(p)) total += dirSize(path.join(p, f));
+  return total;
+}
+
+function findModelJson(dir, depth) {
+  depth = depth || 0;
+  if (depth > 4 || !fs.existsSync(dir)) return null;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const e of entries) {
+    if (e.isFile() && /\.model3?\.json$/i.test(e.name)) return path.join(dir, e.name);
+  }
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      const r = findModelJson(path.join(dir, e.name), depth + 1);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function activeModel() {
+  try {
+    const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
+    return (j.models && j.models[0] && j.models[0].paths && j.models[0].paths[0]) || '';
+  } catch (e) { return ''; }
+}
+
+function setActiveModel(p) {
+  const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
+  if (!j.models || !j.models.length) j.models = [{ name: 'model', paths: [p], message: '你好呀～' }];
+  j.models[0].paths = [p];
+  fs.writeFileSync(WAIFU_JSON, JSON.stringify(j, null, 2) + '\n', 'utf8');
+}
+
+app.get('/api/live2d/models', (req, res) => {
+  const active = activeModel();
+  const list = [];
+  if (fs.existsSync(MODELS_DIR)) {
+    fs.readdirSync(MODELS_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).forEach(d => {
+      const dir = path.join(MODELS_DIR, d.name);
+      const json = findModelJson(dir);
+      if (!json) return;
+      const rel = '/live2d/models/' + d.name + '/' + path.relative(dir, json).split(path.sep).join('/');
+      list.push({ name: d.name, path: rel, size: dirSize(dir), active: rel === active });
+    });
+  }
+  res.json(list);
+});
+
+const modelUpload = multer({
+  storage: multer.diskStorage({
+    destination: os.tmpdir(),
+    filename: (req, file, cb) => cb(null, 'l2d-' + Date.now() + '.zip')
+  }),
+  limits: { fileSize: 12 * 1024 * 1024 }
+});
+
+app.post('/api/live2d', modelUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '没有文件' });
+  const zipPath = req.file.path;
+  let tmp = null;
+  try {
+    const zip = new AdmZip(zipPath);
+    zip.getEntries().forEach(e => {
+      if (e.entryName.indexOf('..') !== -1) throw new Error('压缩包路径非法');
+    });
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'l2d-'));
+    zip.extractAllTo(tmp, true);
+    const json = findModelJson(tmp);
+    if (!json) throw new Error('压缩包里没有找到 .model.json / .model3.json');
+    const root = path.dirname(json);
+    const name = safeSlug(path.basename(root)) || ('model-' + Date.now());
+    fs.mkdirSync(MODELS_DIR, { recursive: true });
+    let target = path.join(MODELS_DIR, name);
+    let i = 1;
+    while (fs.existsSync(target)) { target = path.join(MODELS_DIR, name + '-' + i); i++; }
+    if (root === tmp) {
+      fs.cpSync(tmp, target, { recursive: true });
+      fs.rmSync(tmp, { recursive: true, force: true });
+      tmp = null;
+    } else {
+      fs.cpSync(root, target, { recursive: true });
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+    const size = dirSize(target);
+    if (size > 12 * 1024 * 1024) throw new Error('模型解压后超过 12MB，会挤爆 Cloudflare 资源额度');
+    const rel = '/live2d/models/' + path.basename(target) + '/' + path.basename(json);
+    setActiveModel(rel);
+    res.json({ ok: true, model: rel, size });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  } finally {
+    try { if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
+    try { fs.unlinkSync(zipPath); } catch (e) {}
+  }
+});
+
+app.post('/api/live2d/use', (req, res) => {
+  const p = String((req.body || {}).path || '');
+  if (!/^\/live2d\/models\//.test(p)) return res.status(400).json({ error: '路径非法' });
+  setActiveModel(p);
+  res.json({ ok: true });
+});
+
+app.delete('/api/live2d/models/:name', (req, res) => {
+  const name = path.basename(req.params.name);
+  const dir = path.join(MODELS_DIR, name);
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: '模型不存在' });
+  const active = activeModel();
+  moveToTrash(dir);
+  if (active.indexOf('/live2d/models/' + name + '/') === 0) {
+    const rest = fs.existsSync(MODELS_DIR) ? fs.readdirSync(MODELS_DIR) : [];
+    if (rest.length) setActiveModel('/live2d/models/' + rest[0] + '/' + path.relative(path.join(MODELS_DIR, rest[0]), findModelJson(path.join(MODELS_DIR, rest[0]))).split(path.sep).join('/'));
+    else setActiveModel('/live2d/models/hijiki/hijiki.model.json');
   }
   res.json({ ok: true });
 });

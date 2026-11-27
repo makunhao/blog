@@ -144,10 +144,35 @@ async function newPost(draft) {
   } catch (e) { toast(e.message, true); }
 }
 
+function importMd() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.md,.markdown,text/markdown';
+  input.multiple = true;
+  input.onchange = async () => {
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    let ok = 0;
+    const fails = [];
+    for (const f of files) {
+      try {
+        const content = await f.text();
+        await api('/api/posts/import', { method: 'POST', body: { filename: f.name, content } });
+        ok++;
+      } catch (e) { fails.push(f.name + '：' + e.message); }
+    }
+    toast('导入 ' + ok + ' 篇' + (fails.length ? '，失败 ' + fails.length + ' 篇' : ''), fails.length > 0);
+    if (fails.length) console.warn('导入失败：', fails);
+    renderPosts();
+  };
+  input.click();
+}
+
 async function renderPosts() {
   setHeader('文章', '增删改文章与草稿', [
     { label: '新建文章', cls: 'btn-primary', onClick: () => newPost(false) },
-    { label: '新建草稿', onClick: () => newPost(true) }
+    { label: '新建草稿', onClick: () => newPost(true) },
+    { label: '导入 MD', onClick: importMd }
   ]);
   try {
     const { posts, drafts } = await api('/api/posts');
@@ -532,11 +557,64 @@ async function renderFeatures() {
           '<div class="hint">当前歌单：https://music.163.com/#/playlist?id=' + esc(f.musicId) + '</div>' +
         '</div>' +
         '<div class="card"><h3 class="section-title">Live2D 看板娘</h3>' +
-          '<div class="field"><label>模型路径</label><input id="ft-model" value="' + esc(f.live2dModel) + '"></div>' +
-          '<div class="hint">把模型放进 source/live2d/models/&lt;名字&gt;/，然后填 .../&lt;名字&gt;.model.json</div>' +
+          '<div class="field"><label>当前模型路径</label><input id="ft-model" value="' + esc(f.live2dModel) + '"></div>' +
+          '<div class="row" style="margin-top:8px"><button class="btn btn-sm" id="l2d-upload" style="flex:0 0 auto">上传模型 zip</button>' +
+          '<span class="hint" style="align-self:center">上传后自动切换为当前模型</span></div>' +
+          '<div id="l2d-list" style="margin-top:12px" class="hint">加载中…</div>' +
+          '<div class="hint" style="margin-top:8px">模型需包含 .model.json 或 .model3.json；解压后不超过 12MB（Cloudflare 总资源 20MB）。</div>' +
         '</div>' +
       '</div>';
+    loadLive2dModels();
+    const up = $('#l2d-upload');
+    if (up) up.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.zip,application/zip';
+      input.onchange = async () => {
+        const file = (input.files || [])[0];
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          const r = await api('/api/live2d', { method: 'POST', body: fd });
+          toast('已切换模型（' + (r.size / 1024 / 1024).toFixed(2) + ' MB）');
+          const mEl = $('#ft-model');
+          if (mEl) mEl.value = r.model;
+          loadLive2dModels();
+        } catch (e) { toast(e.message, true); }
+      };
+      input.click();
+    };
   } catch (e) { content.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
+async function loadLive2dModels() {
+  const box = $('#l2d-list');
+  if (!box) return;
+  try {
+    const list = await api('/api/live2d/models');
+    if (!list.length) { box.textContent = '还没有模型，上传一个 zip 试试'; return; }
+    box.innerHTML = list.map(m =>
+      '<div class="l2d-row"><span class="l2d-name">' + esc(m.name) + '</span>' +
+      '<span class="hint">' + (m.size / 1024 / 1024).toFixed(2) + ' MB</span>' +
+      (m.active ? '<span class="pill draft">使用中</span>'
+        : '<button class="btn btn-sm" data-l2d-use="' + esc(m.path) + '">使用</button>') +
+      '<button class="btn btn-sm btn-danger" data-l2d-del="' + esc(m.name) + '">删除</button></div>'
+    ).join('');
+    box.querySelectorAll('[data-l2d-use]').forEach(b => b.onclick = async () => {
+      try {
+        await api('/api/live2d/use', { method: 'POST', body: { path: b.dataset.l2dUse } });
+        toast('已切换');
+        const mEl = $('#ft-model'); if (mEl) mEl.value = b.dataset.l2dUse;
+        loadLive2dModels();
+      } catch (e) { toast(e.message, true); }
+    });
+    box.querySelectorAll('[data-l2d-del]').forEach(b => b.onclick = async () => {
+      if (!confirm('删除模型 ' + b.dataset.l2dDel + '？')) return;
+      try { await api('/api/live2d/models/' + encodeURIComponent(b.dataset.l2dDel), { method: 'DELETE' }); toast('已删除'); loadLive2dModels(); }
+      catch (e) { toast(e.message, true); }
+    });
+  } catch (e) { box.textContent = e.message; }
 }
 
 async function saveFeatures() {
