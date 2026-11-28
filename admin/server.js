@@ -174,7 +174,12 @@ function execSyncText(cmd) {
 app.post('/api/posts/import', (req, res) => {
   const { filename = 'import.md', content = '', category = '' } = req.body || {};
   if (!String(content).trim()) return res.status(400).json({ error: '文件内容为空' });
-  const { meta, body } = splitMd(String(content));
+  const parsed = splitMd(String(content));
+  const meta = parsed.meta;
+  let body = parsed.body;
+  if (/(\{\{|\{%|\{#)/.test(body) && !/\{%\s*raw\s*%\}/.test(body)) {
+    body = '{% raw %}\n' + body + (body.endsWith('\n') ? '' : '\n') + '{% endraw %}\n';
+  }
   const base = path.basename(String(filename)).replace(/\.(md|markdown)$/i, '');
   const title = meta.title || base || '导入的文章';
   let slug = safeSlug(meta.slug || base) || ('import-' + Date.now());
