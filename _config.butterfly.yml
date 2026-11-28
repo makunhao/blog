@@ -109,7 +109,7 @@ aside:
     category: true
   card_author:
     enable: true
-    description: 郑州西亚斯学院 · 计算机科学与技术<br>网络安全 / 靶场实战 / 瞎折腾
+    description: " 计算机科学与技术<br>网络安全 / 靶场实战 / 瞎折腾"
     button:
       enable: false
   card_announcement:
