@@ -521,7 +521,7 @@ app.put('/api/features', (req, res) => {
     const js = fs.readFileSync(MUSIC_JS, 'utf8').replace(/([?&]id=)\d+/, '$1' + b.musicId);
     fs.writeFileSync(MUSIC_JS, js, 'utf8');
   }
-  if (b.live2dModel && /^\/live2d\/models\//.test(b.live2dModel)) {
+  if (b.live2dModel && (/^\/live2d\/models\//.test(b.live2dModel) || /^https:\/\//.test(b.live2dModel))) {
     const j = JSON.parse(fs.readFileSync(WAIFU_JSON, 'utf8'));
     if (j.models && j.models[0]) j.models[0].paths = [b.live2dModel];
     fs.writeFileSync(WAIFU_JSON, JSON.stringify(j, null, 2) + '\n', 'utf8');

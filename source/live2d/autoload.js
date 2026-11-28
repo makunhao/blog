@@ -41,6 +41,7 @@ function loadExternalResource(url, type) {
   initWidget({
     waifuPath: live2d_path + 'waifu-tips.json',
     cubism2Path: live2d_path + 'live2d.min.js',
+    cubism5Path: live2d_path + 'live2dcubismcore.min.js',
     tools: ['hitokoto', 'photo', 'info', 'quit'],
     logLevel: 'warn',
     drag: true
