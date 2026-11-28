@@ -557,7 +557,7 @@
     {
       "name": "hijiki",
       "paths": [
-        "/live2d/models/hijiki/hijiki.model.json"
+        "https://pub-f42c49a99236466f97b6d8d2fb1af72f.r2.dev/kala/model.model3.json"
       ],
       "message": "你好呀，我是看板娘 hijiki～"
     }
